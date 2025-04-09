@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Obiekty 3D: Korkociąg i Piramida</title>
+  <script src="glsim.js"></script>  <!-- Ładujemy bibliotekę symulującą OpenGL 1.1 -->
+
+  <script>
+    // Globalne zmienne sterujące obrotem i wyborem obiektu
+    let rotateX = 15, rotateY = -15, rotateZ = 0;
+    let objectNumber = 2;  // 1 - korkociąg, 2 - piramida
+
+    // Parametry ogólne
+    const N = 8;         // Liczba obrotów lub wierzchołków (dla piramidy – liczba boków podstawy)
+    const twoPi = 2 * Math.PI;
+
+
+    // --------------------- Piramida ---------------------
+
+    // Tablica przechowująca kolory ścian
+    let pyramidColors = Array.from({ length: N }, () => [
+      Math.random(),
+      Math.random(),
+      Math.random(),
+    ]);
+
+    function drawPyramid() {
+      let baseRadius = 0.5;
+      let height = 0.8;
+      let angleStep = twoPi / N;
+
+      // Pozycja kuli (źródła światła)
+      let lightX = lightRadius * Math.cos(lightAngle);
+      let lightY = lightRadius * Math.sin(lightAngle);
+      let lightZ = 0;
+
+      // --- Rysujemy podstawę piramidy ---
+      glColor3f(0.8, 0.8, 0); // Żółty kolor podstawy
+      glBegin(GL_TRIANGLE_FAN);
+      glVertex3f(0, 0, 0); // Centrum podstawy
+      for (let i = 0; i <= N; i++) {
+        let angle = i * angleStep;
+        let x = baseRadius * Math.cos(angle);
+        let y = baseRadius * Math.sin(angle);
+        glVertex3f(x, y, 0);
+      }
+      glEnd();
+
+      // --- Rysujemy ścianki boczne piramidy ---
+      glBegin(GL_TRIANGLES);
+        for (let i = 0; i < N; i++) {
+          let angle1 = i * angleStep;
+          let angle2 = (i + 1) * angleStep;
+
+          let x1 = baseRadius * Math.cos(angle1);
+          let y1 = baseRadius * Math.sin(angle1);
+          let x2 = baseRadius * Math.cos(angle2);
+          let y2 = baseRadius * Math.sin(angle2);
+
+          // Środek ściany
+          let centerX = (x1 + x2) / 2;
+          let centerY = (y1 + y2) / 2;
+          let centerZ = height / 2;
+
+          // Obliczanie odległości od środka ściany do kuli
+          let dx = centerX - lightX;
+          let dy = centerY - lightY;
+          let dz = centerZ - lightZ;
+          let distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+          // Ustalanie jasności w zależności od odległości (im bliżej, tym jaśniej)
+          let brightness = Math.max(0.2, 1 - distance / 2); // Minimalna jasność to 0.2
+          glColor3f(brightness, brightness, brightness);
+
+          // Rysowanie ściany
+          glVertex3f(0, 0, height); // Wierzchołek szczytowy
+          glVertex3f(x1, y1, 0);    // Pierwszy wierzchołek podstawy
+          glVertex3f(x2, y2, 0);    // Drugi wierzchołek podstawy
+        }
+      glEnd();
+    }
+
+    // --------------------- Światło ---------------------
+
+    let lightAngle = 0; // Kąt obrotu kuli
+    const lightRadius = 1.5; // Promień orbity kuli
+
+    function drawSphere() {
+      const slices = 16, stacks = 16;
+      const radius = 0.2;
+
+      for (let i = 0; i <= stacks; i++) {
+        let lat0 = Math.PI * (-0.5 + (i - 1) / stacks);
+        let z0 = radius * Math.sin(lat0);
+        let zr0 = radius * Math.cos(lat0);
+
+        let lat1 = Math.PI * (-0.5 + i / stacks);
+        let z1 = radius * Math.sin(lat1);
+        let zr1 = radius * Math.cos(lat1);
+
+        glBegin(GL_QUAD_STRIP);
+        for (let j = 0; j <= slices; j++) {
+          let lng = 2 * Math.PI * (j - 1) / slices;
+          let x = Math.cos(lng);
+          let y = Math.sin(lng);
+
+          glColor3f(1, 1, 0); // Żółty kolor kuli
+          glVertex3f(x * zr0, y * zr0, z0);
+          glVertex3f(x * zr1, y * zr1, z1);
+        }
+        glEnd();
+      }
+    }
+
+    function drawLightSource() {
+      glPushMatrix();
+        // Obrót kuli wokół kamery
+        let x = lightRadius * Math.cos(lightAngle);
+        let y = lightRadius * Math.sin(lightAngle);
+        glTranslatef(x, y, 0);
+        drawSphere();
+      glPopMatrix();
+    }
+
+    // --------------------- Funkcja display() ---------------------
+    function display() {
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glLoadIdentity();
+
+      glTranslatef(0, 0, 0); // Odsunięcie kamery w głąb sceny
+
+      // Obrót globalny
+      glRotatef(rotateZ, 0, 0, 1);
+      glRotatef(rotateY, 0, 1, 0);
+      glRotatef(rotateX, 1, 0, 0);
+
+      // Rysowanie źródła światła
+      drawLightSource();
+
+      // Rysowanie obiektu
+      glPushMatrix();
+        if (objectNumber === 1) {
+          drawCorkscrew();
+        } else if (objectNumber === 2) {
+          drawPyramid();
+        }
+      glPopMatrix();
+
+      // Aktualizacja kąta obrotu światła
+      lightAngle += 0.01; // Zmniejszona prędkość obrotu
+      if (lightAngle > twoPi) lightAngle -= twoPi;
+
+      requestAnimationFrame(display);
+    }
+
+    // --------------------- Inicjalizacja OpenGL ---------------------
+    function initGL() {
+      glMatrixMode(GL_PROJECTION);
+      glOrtho(-1, 1, -1, 1, -1, 1);
+      glMatrixMode(GL_MODELVIEW);
+      glEnable(GL_DEPTH_TEST);
+      glClearColor(0, 0, 0, 1);
+    }
+
+    // --------------------- Obsługa klawiatury ---------------------
+    function doKeyDown(evt) {
+      let key = evt.keyCode;
+
+      // Obracanie – analogicznie do przykładu
+      if (key === 37) { // strzałka w lewo
+        rotateY -= 15;
+      } else if (key === 39) { // strzałka w prawo
+        rotateY += 15;
+      } else if (key === 38) { // strzałka w górę
+        rotateX -= 15;
+      } else if (key === 40) { // strzałka w dół
+        rotateX += 15;
+      } else if (key === 33) { // Page Up
+        rotateZ += 15;
+      } else if (key === 34) { // Page Down
+        rotateZ -= 15;
+      } else if (key === 36) { // Home
+        rotateX = rotateY = rotateZ = 0;
+      }
+      // Zapobiegamy domyślnym działaniom, jeśli naciskany jest klawisz sterujący
+      if (key >= 33 && key <= 40 || key === 36 || key === 49 || key === 50) {
+        evt.preventDefault();
+      }
+    }
+
+    // --------------------- Obsługa myszy ---------------------
+
+    let isDragging = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    function onMouseDown(event) {
+      isDragging = true;
+      lastMouseX = event.clientX;
+      lastMouseY = event.clientY;
+    }
+
+    function onMouseMove(event) {
+      if (!isDragging) return;
+
+      // Oblicz różnicę w położeniu myszy
+      let deltaX = event.clientX - lastMouseX;
+      let deltaY = event.clientY - lastMouseY;
+
+      // Aktualizuj kąty obrotu
+      rotateY += deltaX * 0.5; // Wpływ ruchu w poziomie na obrót wokół osi Y
+      rotateX += deltaY * 0.5; // Wpływ ruchu w pionie na obrót wokół osi X
+
+      // Zaktualizuj ostatnie położenie myszy
+      lastMouseX = event.clientX;
+      lastMouseY = event.clientY;
+    }
+
+    function onMouseUp() {
+      isDragging = false;
+    }
+
+    // --------------------- Funkcja init() ---------------------
+    function init() {
+      try {
+        glsimUse("glcanvas");
+      } catch (e) {
+        document.getElementById("canvas-holder").innerHTML =
+          "Przykro nam, wystąpił błąd:<br>" + e;
+        return;
+      }
+
+      // Obsługa klawiatury
+      document.onkeydown = doKeyDown;
+
+      // Obsługa myszy
+      const canvas = document.getElementById("glcanvas");
+      canvas.onmousedown = onMouseDown;
+      canvas.onmousemove = onMouseMove;
+      canvas.onmouseup = onMouseUp;
+      canvas.onmouseleave = onMouseUp; // Zatrzymanie obrotu, gdy mysz opuści obszar canvasu
+
+      initGL();
+      display();
+    }
+  </script>
+</head>
+<body onload="init()">
+  <h3>Piramida i światłocień</h3>
+  <p>Użyj myszy, aby obracać figurą</p>
+  <noscript>
+    <p><b>Przykro nam, ta strona wymaga włączonego JavaScript!</b></p>
+  </noscript>
+  <div id="canvas-holder">
+    <canvas id="glcanvas" width="500" height="500"></canvas>
+  </div>
+</body>
+</html>

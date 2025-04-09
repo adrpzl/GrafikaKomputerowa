@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Obiekty 3D: Korkociąg i Piramida</title>
+  <script src="glsim.js"></script>  <!-- Ładujemy bibliotekę symulującą OpenGL 1.1 -->
+
+  <script>
+    // Globalne zmienne sterujące obrotem i wyborem obiektu
+    let rotateX = 15, rotateY = -15, rotateZ = 0;
+    let objectNumber = 1;  // 1 - korkociąg, 2 - piramida
+
+    // Parametry ogólne
+    const N = 8;         // Liczba obrotów lub wierzchołków (dla piramidy – liczba boków podstawy)
+    const twoPi = 2 * Math.PI;
+
+    // --------------------- Obiekt 1: Korkociąg ---------------------
+    function drawCorkscrew() {
+      // Ustawiamy kolor – przykładowo zielony
+      glColor3f(0, 1, 0);
+      glBegin(GL_LINE_STRIP);
+      
+      // Parametry korkociągu: 
+      // N_turns – liczba pełnych obrotów, tutaj wykorzystamy N = liczba obrotów
+      // Użyjemy małego współczynnika skalowania, aby obiekt mieścił się w oknie
+      let N_turns = N;  
+      let maxT = N_turns * twoPi;
+      // Parametr t będzie zmieniał się od 0 do maxT, przyjmujemy odpowiedni krok
+      let step = 0.1;
+      
+      for (let t = 0; t <= maxT; t += step) {
+        // Promień rośnie liniowo – im dalej, tym większy
+        let r = 0.05 + 0.03 * t;
+        // Wzór na helisę: obrót w płaszczyźnie XY, dodatkowo wzrost w osi Z
+        let x = r * Math.cos(t);
+        let y = r * Math.sin(t);
+        let z = 0.03 * t;
+        glVertex3f(x, y, z);
+      }
+      glEnd();
+    }
+
+    // --------------------- Obiekt 2: Piramida ---------------------
+    // Rysujemy piramidę przy pomocy dwóch wachlarzy trójkątów.
+    // Pierwszy wachlarz – podstawa (wielokąt o N wierzchołkach),
+    // Drugi wachlarz – ściany boczne (wierzchołek szczytowy i kolejne punkty podstawy).
+    function drawPyramid() {
+      // Parametry piramidy
+      let baseRadius = 0.5;
+      let height = 0.8;
+      let angleStep = twoPi / N;
+      
+      // --- Rysujemy podstawę piramidy ---
+      // Ustawiamy kolor – przykładowo żółty
+      glColor3f(0.8, 0.8, 0);
+      glBegin(GL_TRIANGLE_FAN);
+        // Centrum podstawy
+        glVertex3f(0, 0, 0);
+        // Wierzchołki podstawy – iterujemy od 0 do N (ostatni punkt to powtórzenie pierwszego)
+        for (let i = 0; i <= N; i++) {
+          let angle = i * angleStep;
+          let x = baseRadius * Math.cos(angle);
+          let y = baseRadius * Math.sin(angle);
+          glVertex3f(x, y, 0);
+        }
+      glEnd();
+
+      // --- Rysujemy ścianki boczne piramidy ---
+      // Ustawiamy inny kolor – przykładowo fioletowy
+      glColor3f(Math.random(), Math.random(), Math.random());
+      glBegin(GL_TRIANGLE_FAN);
+        // Szczyt piramidy
+        glVertex3f(0, 0, height);
+        // Przechodzimy po wierzchołkach podstawy
+        for (let i = 0; i <= N; i++) {
+          let angle = i * angleStep;
+          let x = baseRadius * Math.cos(angle);
+          let y = baseRadius * Math.sin(angle);
+          glColor3f(1, 0.5, 0.5);
+          glVertex3f(x, y, 0);
+        }
+      glEnd();
+    }
+
+    // --------------------- Funkcja display() ---------------------
+    function display() {
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glLoadIdentity();
+      // Najpierw stosujemy obrót globalny
+      glRotatef(rotateZ, 0, 0, 1);
+      glRotatef(rotateY, 0, 1, 0);
+      glRotatef(rotateX, 1, 0, 0);
+
+      // W zależności od wybranej wartości globalnej objectNumber rysujemy odpowiedni obiekt
+      glPushMatrix();
+        if (objectNumber === 1) {
+          drawCorkscrew();
+        } else if (objectNumber === 2) {
+          drawPyramid();
+        }
+      glPopMatrix();
+    }
+
+    // --------------------- Inicjalizacja OpenGL ---------------------
+    function initGL() {
+      glMatrixMode(GL_PROJECTION);
+      glOrtho(-1, 1, -1, 1, -1, 1);
+      glMatrixMode(GL_MODELVIEW);
+      glEnable(GL_DEPTH_TEST);
+      glClearColor(0, 0, 0, 1);
+    }
+
+    // --------------------- Obsługa klawiatury ---------------------
+    function doKeyDown(evt) {
+      let key = evt.keyCode;
+      // Wybór obiektu
+      if (key === 49) { // klawisz "1"
+        objectNumber = 1;
+      } else if (key === 50) { // klawisz "2"
+        objectNumber = 2;
+      }
+      // Obracanie – analogicznie do przykładu
+      else if (key === 37) { // strzałka w lewo
+        rotateY -= 15;
+      } else if (key === 39) { // strzałka w prawo
+        rotateY += 15;
+      } else if (key === 38) { // strzałka w górę
+        rotateX -= 15;
+      } else if (key === 40) { // strzałka w dół
+        rotateX += 15;
+      } else if (key === 33) { // Page Up
+        rotateZ += 15;
+      } else if (key === 34) { // Page Down
+        rotateZ -= 15;
+      } else if (key === 36) { // Home
+        rotateX = rotateY = rotateZ = 0;
+      }
+      // Zapobiegamy domyślnym działaniom, jeśli naciskany jest klawisz sterujący
+      if (key >= 33 && key <= 40 || key === 36 || key === 49 || key === 50) {
+        evt.preventDefault();
+      }
+      display();
+    }
+
+    // --------------------- Funkcja init() ---------------------
+    function init() {
+      try {
+        glsimUse("glcanvas");
+      } catch (e) {
+        document.getElementById("canvas-holder").innerHTML =
+          "Przykro nam, wystąpił błąd:<br>" + e;
+        return;
+      }
+      document.onkeydown = doKeyDown;
+      initGL();
+      display();
+    }
+  </script>
+</head>
+<body onload="init()">
+  <h3>Obiekty 3D: Korkociąg i Piramida</h3>
+  <p>Naciśnij klawisz 1 lub 2, aby wybrać obiekt. Obracaj obiekt za pomocą strzałek, PageUp, PageDown i Home.</p>
+  <noscript>
+    <p><b>Przykro nam, ta strona wymaga włączonego JavaScript!</b></p>
+  </noscript>
+  <div id="canvas-holder">
+    <canvas id="glcanvas" width="500" height="500"></canvas>
+  </div>
+</body>
+</html>
