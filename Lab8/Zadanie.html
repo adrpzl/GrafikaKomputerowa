@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Piramida z teksturami</title>
+  <meta http-equiv="Access-Control-Allow-Origin" content="*" />
+  <script src="script/glsim.js"></script>
+  <style>
+    canvas {
+      display: block;
+      margin: 20px auto;
+      border: 1px solid black;
+    }
+  </style>
+</head>
+<body>
+  <h3>Piramida</h3>
+  <p>Ładowanie tekstury:</p>
+  <label>
+    <input type="radio" name="textureMode" value="file" checked> Z pliku
+  </label>
+  <label>
+    <input type="radio" name="textureMode" value="buffer"> Z bufora
+  </label>
+  <canvas id="glcanvas" width="500" height="500"></canvas>
+
+  <script>
+    const canvas = document.getElementById("glcanvas");
+    glsimUse(canvas);
+    glsimTexImage(canvas);
+
+    const N = 8; // Liczba boków podstawy piramidy
+    const twoPi = 2 * Math.PI;
+    let textureMode = "file"; // Domyślny sposób ładowania tekstury
+    let texture;
+
+    function loadTextureFromFile() {
+      const image = new Image();
+      image.src = "textures/brick001.jpg"; // Ścieżka do pliku tekstury
+      image.onload = () => {
+        console.log("Image loaded:", image.src, "Width:", image.width, "Height:", image.height);
+        texture = glCreateTexture();
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glsimTexImage(image); // Użycie glsimTexImage zamiast glTexImage2D
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        drawScene();
+      };
+      image.onerror = () => {
+        console.error("Failed to load image:", image.src);
+      };
+    }
+
+    function loadTextureFromBuffer() {
+      const width = 256, height = 256;
+      const data = new Uint8Array(width * height * 4);
+      for (let i = 0; i < data.length; i += 4) {
+        const x = (i / 4) % width;
+        const y = Math.floor(i / 4 / width);
+        const checker = (Math.floor(x / 32) + Math.floor(y / 32)) % 2;
+        const color = checker ? 255 : 0;
+        data[i] = color;     // R
+        data[i + 1] = color; // G
+        data[i + 2] = color; // B
+        data[i + 3] = 255;   // A
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.createImageData(width, height);
+      imageData.data.set(data);
+      ctx.putImageData(imageData, 0, 0);
+
+      texture = glCreateTexture();
+      glBindTexture(GL_TEXTURE_2D, texture);
+      glsimTexImage(canvas); // Use glsimTexImage instead of glTexImage2D
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+      drawScene();
+    }
+
+    function drawPyramid() {
+      const baseRadius = 0.5;
+      const height = 0.8;
+      const angleStep = twoPi / N;
+
+      glEnable(GL_TEXTURE_2D);
+      glBindTexture(GL_TEXTURE_2D, texture);
+
+      // Podstawa piramidy
+      glBegin(GL_TRIANGLE_FAN);
+      glTexCoord2f(0.5, 0.5);
+      glVertex3f(0, 0, 0);
+      for (let i = 0; i <= N; i++) {
+        const angle = i * angleStep;
+        const x = baseRadius * Math.cos(angle);
+        const y = baseRadius * Math.sin(angle);
+        glTexCoord2f((x + 1) / 2, (y + 1) / 2);
+        glVertex3f(x, y, 0);
+      }
+      glEnd();
+
+      // Ściany boczne piramidy
+      glBegin(GL_TRIANGLES);
+      for (let i = 0; i < N; i++) {
+        const angle1 = i * angleStep;
+        const angle2 = (i + 1) * angleStep;
+
+        const x1 = baseRadius * Math.cos(angle1);
+        const y1 = baseRadius * Math.sin(angle1);
+        const x2 = baseRadius * Math.cos(angle2);
+        const y2 = baseRadius * Math.sin(angle2);
+
+        glTexCoord2f(0.5, 1);
+        glVertex3f(0, 0, height);
+        glTexCoord2f((x1 + 1) / 2, (y1 + 1) / 2);
+        glVertex3f(x1, y1, 0);
+        glTexCoord2f((x2 + 1) / 2, (y2 + 1) / 2);
+        glVertex3f(x2, y2, 0);
+      }
+      glEnd();
+    }
+
+    function drawScene() {
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+      glLoadIdentity();
+      glTranslatef(0, 0, -2);
+      glRotatef(30, 1, 0, 0);
+      glRotatef(30, 0, 1, 0);
+      drawPyramid();
+    }
+
+    function initGL() {
+      glMatrixMode(GL_PROJECTION);
+      glLoadIdentity();
+      glOrtho(-1, 1, -1, 1, -1, 1);
+      glMatrixMode(GL_MODELVIEW);
+      glEnable(GL_DEPTH_TEST);
+      glClearColor(0.2, 0.2, 0.2, 1);
+    }
+
+    document.querySelectorAll('input[name="textureMode"]').forEach(input => {
+      input.addEventListener("change", (event) => {
+        textureMode = event.target.value;
+        if (textureMode === "file") {
+          loadTextureFromFile();
+        } else if (textureMode === "buffer") {
+          loadTextureFromBuffer();
+        }
+      });
+    });
+
+    initGL();
+    //loadTextureFromFile(); // Domyślnie ładowanie tekstury z pliku
+
+    loadTextureFromBuffer(); // Domyślnie ładowanie tekstury z bufora
+
+  </script>
+</body>
+</html>

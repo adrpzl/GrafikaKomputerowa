@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<head>
+<meta charset="UTF-8">
+<title>CS 424 Lab 9 - Decagonal Merry-Go-Round</title>
+<script src="https://cdn.jsdelivr.net/npm/three@0.115/build/three.js"></script>
+<script src="./resources/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.115/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+
+"use strict";
+
+var canvas, renderer, scene, camera; // Standard three.js requirements.
+var controls;  // OrbitControls for mouse rotation
+var animating = false;  // Set to true when animation is in progress
+var frameNumber = 0;  // Frame counter for animation
+
+var floor; 
+var poles = []; // Array to hold all 10 poles
+var pivots = []; // Array to hold all 10 pivot points
+var roof;
+var roof2;
+var horses = []; // Array to track horse positions
+
+/**
+ *  The render function draws the scene.
+ */
+function render() {
+    renderer.render(scene, camera);
+}
+
+/**
+ * This function is called by the init() method to create the world. 
+ */
+
+
+function createWorld() {
+    renderer.setClearColor("white"); // Background color for scene
+    scene = new THREE.Scene();
+    
+    camera = new THREE.PerspectiveCamera(30, canvas.width/canvas.height, 0.1, 100);
+    camera.position.z = 40;
+    camera.position.y = 20;
+    
+    var light = new THREE.DirectionalLight();
+    light.position.set(0,0,1);
+    camera.add(light);
+    scene.add(camera);
+    
+    //------------------- Create the scene's visible objects ----------------------
+    // Create octagonal floor (8 sides)
+    floor = new THREE.Mesh(
+        new THREE.CylinderGeometry(13.5, 13.5, 0.6, 8, 1),  
+        new THREE.MeshPhongMaterial({
+            color: 0x441c84,
+            specular: 0x222222,
+            shininess: 8,
+            shading: THREE.FlatShading
+        })
+    );
+    floor.rotation.y = Math.PI/8; // Slight rotation to see the octagon shape
+    scene.add(floor);
+    
+    // Cloud sphere
+    var geometry = new THREE.SphereGeometry(3.7, 32, 32);
+    var material = new THREE.MeshBasicMaterial({ 
+        map: new THREE.TextureLoader().load('resources/clouds.jpg') 
+    });
+    var sphere = new THREE.Mesh(geometry, material);
+    sphere.position.y = 3.8;
+    scene.add(sphere);
+    
+    // Create 8 poles evenly spaced around the octagon
+    var poleRadius = 0.3;
+    var poleHeight = 7.5;
+    var poleMaterial = new THREE.MeshPhongMaterial({
+        color: 0x7c5426,
+        specular: 0x222222,
+        shininess: 8,
+        shading: THREE.FlatShading
+    });
+    
+    // Calculate positions for 8 poles around an octagon
+    for (var i = 0; i < 8; i++) {
+        var angle = (i / 8) * Math.PI * 2;
+        var x = Math.cos(angle) * 11.5;
+        var z = Math.sin(angle) * 11.5;
+        
+        // Create pole
+        var pole = new THREE.Mesh(
+            new THREE.CylinderGeometry(poleRadius, poleRadius, poleHeight, 30, 1),
+            poleMaterial
+        );
+        pole.position.x = x;
+        pole.position.y = 3.9;
+        pole.position.z = z;
+        
+        // Create pivot point for rotation
+        var pivot = new THREE.Group();
+        pivot.position.y = 0;
+        pivot.add(pole);
+        scene.add(pivot);
+        
+        poles.push(pole);
+        pivots.push(pivot);
+    }
+    
+    // Create roof (conical top)
+    roof = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 12, 3, 8, 1),
+        new THREE.MeshPhongMaterial({
+            color: 0x441c84,
+            specular: 0x222222,
+            shininess: 8,
+            shading: THREE.FlatShading
+        })
+    );
+    roof.position.y = 9.1;
+    scene.add(roof);
+    
+    // Create roof base
+    roof2 = new THREE.Mesh(
+        new THREE.CylinderGeometry(12, 12, 0.3, 8, 1), // 8 sides to match octagon
+        new THREE.MeshPhongMaterial({
+            color: 0x441c84,
+            specular: 0x222222,
+            shininess: 8,
+            shading: THREE.FlatShading
+        })
+    );
+    roof2.position.y = 7.5;
+    scene.add(roof2);
+    
+    // Load 8 horses
+    var loader = new THREE.GLTFLoader();
+    for (var i = 0; i < 8; i++) {
+        (function(index) {
+            loader.load('https://threejs.org/examples/models/gltf/Horse.glb', function(gltf) {
+                gltf.scene.scale.multiplyScalar(0.03);
+                
+                // Position horses around the octagon, slightly inside the poles
+                var angle = (index / 8) * Math.PI * 2;
+                var x = Math.cos(angle) * 10;
+                var z = Math.sin(angle) * 10;
+                
+                gltf.scene.position.x = x;
+                gltf.scene.position.z = z;
+                gltf.scene.position.y = 1;
+                
+                // Rotate horses to face outward
+                gltf.scene.rotation.y = angle + Math.PI/2;
+                
+                scene.add(gltf.scene);
+                horses.push(gltf.scene);
+                
+                // Add horse to the corresponding pivot group for rotation
+                pivots[index].add(gltf.scene);
+            });
+        })(i);
+    }
+}
+
+
+/**
+ *  Update animation for each frame
+ */
+function updateForFrame() {
+    floor.rotation.y += 0.01;
+    roof.rotation.y += 0.01;
+    roof2.rotation.y += 0.01;
+    
+    // Rotate all pivot points (which rotate poles and horses)
+    for (var i = 0; i < pivots.length; i++) {
+        pivots[i].rotation.y += 0.01;
+    }
+}
+
+/* ---------------------------- MOUSE AND ANIMATION SUPPORT ------------------ */
+
+function installOrbitControls() {
+    controls = new THREE.OrbitControls(camera,canvas);
+    controls.noPan = true; 
+    controls.noZoom = true;
+    controls.staticMoving = true;
+    
+    function move() {
+        controls.update();
+        if (!animating) {
+            render();
+        }
+    }
+    
+    function down() {
+        document.addEventListener("mousemove", move, false);
+    }
+    
+    function up() {
+        document.removeEventListener("mousemove", move, false);
+    }
+    
+    function touch(event) {
+        if (event.touches.length == 1) {
+            move();
+        }
+    }
+    
+    canvas.addEventListener("mousedown", down, false);
+    canvas.addEventListener("touchmove", touch, false);
+}
+
+/*  Called when user changes setting of the Animate checkbox */
+function doAnimateCheckbox() {
+    var run = document.getElementById("animateCheckbox").checked;
+    if (run != animating) {
+        animating = run;
+        if (animating) {
+            requestAnimationFrame(doFrame);
+        }
+    }
+}
+
+/*  Drives the animation, called by system through requestAnimationFrame() */
+function doFrame() {
+    if (animating) {
+        frameNumber++;
+        updateForFrame();
+        render();
+        requestAnimationFrame(doFrame);
+    }
+}
+
+/*----------------------------- INITIALIZATION ----------------------------------------*/
+
+/**
+ *  Initialize the scene
+ */
+function init() {
+    try {
+        canvas = document.getElementById("glcanvas");
+        renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            antialias: true,
+            alpha: false
+        });
+    }
+    catch (e) {
+        document.getElementById("message").innerHTML="<b>Sorry, an error occurred:<br>" +
+                e + "</b>";
+        return;
+    }
+    document.getElementById("animateCheckbox").checked = false;
+    document.getElementById("animateCheckbox").onchange = doAnimateCheckbox;
+    createWorld();
+    installOrbitControls();
+    render();
+}
+
+</script>
+</head>
+<body onload="init()">
+
+<h2>Three.js Modeling Demo: Decagonal Merry-Go-Round</h2>
+
+<noscript>
+   <p style="color: #AA0000; font-weight: bold">Sorry, but this page requires JavaScript!</p>
+</noscript>
+
+<p style="color:#AA0000; font-weight: bold" id="message">
+</p>
+
+<p>
+   <label><input type="checkbox" id="animateCheckbox"><b>Animate</b></label>
+   <b style="margin-left:50px">Use the mouse to rotate the model.</b>
+</p>
+
+<div id="canvas-holder" style="float:left; border: thin solid black; background-color: white">
+   <canvas width=1200 height=600 id="glcanvas"></canvas>
+</div>
+
+</body>
+</html>

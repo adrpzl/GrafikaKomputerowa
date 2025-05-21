@@ -1,0 +1,12 @@
+{
+  "name": "model-viewer",
+  "version": "1.0.0",
+  "description": "3D Model Viewer",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+}
